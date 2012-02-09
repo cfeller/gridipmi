@@ -1,0 +1,21 @@
+# Read about fixtures at http://ar.rubyonrails.org/classes/Fixtures.html
+
+one:
+  hostname: MyString
+  cur_temp: 1.5
+  temp_status: MyString
+  thresh_unc: 1.5
+  thresh_ucr: 1.5
+  thresh_unr: MyString
+  watermark_high: 1.5
+  watermark_low: 1.5
+
+two:
+  hostname: MyString
+  cur_temp: 1.5
+  temp_status: MyString
+  thresh_unc: 1.5
+  thresh_ucr: 1.5
+  thresh_unr: MyString
+  watermark_high: 1.5
+  watermark_low: 1.5

@@ -1,0 +1,29 @@
+<h1>Listing nodes</h1>
+
+
+<% @layout.size.times do |rack| %>
+<div class="rack-<%= rack %>" >
+  <% @layout[rack].times do |rank| %>
+  <div class="rank-<%= rank %>" >
+    <% location = Location.find_by_rack_and_rank(rack,rank).node %>
+    <%= link_to(image_tag("rrd_graphs/#{location.hostname}.png"),location) %>
+
+<!--    <td><%#= node.hostname %></td> -->
+<!--    <td><%#= location.node.cur_temp %></td> -->
+<!--    <td><%#= location.node.temp_status %></td> -->
+<!--    <td><%#= node.thresh_unc %></td> -->
+<!--    <td><%#= node.thresh_ucr %></td> -->
+<!--    <td><%#= node.thresh_unr %></td> -->
+<!--    <td><%#= location.node.watermark_high %></td> -->
+<!--    <td><%#= locatin.node.watermark_low %></td> -->
+<!--    <td><%#= link_to 'Show', node %></td> -->
+<!--    <td><%#= link_to 'Edit', edit_node_path(node) %></td> -->
+<!--    <td><%#= link_to 'Destroy', node, :confirm => 'Are you sure?', :method => :delete %></td> -->
+  </div>
+  <% end %>
+</div>
+<% end %>
+
+
+<!--<%= link_to 'New Node', new_node_path %> -->
+<br />

@@ -1,0 +1,77 @@
+<p id="notice"><%= notice %></p>
+
+  <title><%= @node.hostname %></title>
+
+<table style="border-spacing: 10px 0px">
+
+  <tr>
+    <td colspan="1" rowspan="7">
+      <%= image_tag("rrd_graphs/#{@node.hostname}.png") %>
+    </td>
+
+    <td>
+      <b>Ambient temperature:</b>
+    </td>
+    <td>
+      <%= @node.cur_temp %>&deg;C
+    </td>
+  </tr>
+
+  <tr>
+    <td>
+      <b>Temperature status:</b> 
+     </td>
+     <td>
+      <%= @node.temp_status %>
+    </td>
+  </tr>
+
+  <tr>
+    <td>
+      <b>Watermark high:</b>
+    </td>
+    <td>
+      <%= @node.watermark_high %>&deg;C 
+    </td>
+  </tr>
+
+  <tr>
+    <td>
+      <b>Watermark low:</b>
+    </td>
+    <td>
+      <%= @node.watermark_low %>&deg;C 
+    </td>
+  </tr>
+
+  <tr>
+    <td>
+      <b>Threshold, Upper Non-Critical:</b>
+    </td>
+    <td>
+      <%= @node.thresh_unc %>&deg;C
+    </td>
+  </tr>
+
+  <tr>
+    <td>
+      <b>Threshold, Upper Critical:</b>
+    </td>
+    <td>
+      <%= @node.thresh_ucr %>&deg;C
+    </td>
+  </tr>
+
+  <tr>
+    <td>
+      <b>Threshold, Upper Non-Recoverable:</b>
+    </td>
+    <td>
+      <%= @node.thresh_unr %>&deg;C
+    </td>
+  </tr>
+
+</table>
+
+<%= link_to 'Edit', edit_node_path(@node) %> |
+<%= link_to 'Back', nodes_path %>

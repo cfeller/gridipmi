@@ -1,0 +1,23 @@
+:rrd: 
+  :db_path: rrd_databases
+  :img_path: rrd_graphs
+  :img_path_sm: rrd_graphs/small
+  :name: localhost
+  :step: 60
+  :ds_label: temp
+  :ds_type: GAUGE
+  :ds_heartbeat: 120
+  :min: U
+  :max: U
+
+  :rra1:
+    :cf: AVERAGE
+    :xff: 0.5
+    :step: 2
+    :rows: 720 # 24 hours
+
+  :rra2:
+    :cf: AVERAGE
+    :xff: 0.5
+    :step: 5
+    :rows: 8928 # 31 days

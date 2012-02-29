@@ -140,10 +140,18 @@ while($running) do
       end
     else
       puts "'N/A' returned, punting"
+      Rails.logger.auto_flushing = true
+      Rails.logger.info nodelist[x][:bmc].get_hostname+"returned 'N/A', punting"
     end
   end
   
   $delta -= Time.now.to_i
-  sleep 60 + $delta
+  begin
+    sleep 60 + $delta
+  rescue ArgumentError
+    puts "Lost "+(-60 - $delta).to_s+" ticks!!!"
+    Rails.logger.auto_flushing = true
+    Rails.logger.info "Lost "+(-60 - $delta).to_s+" ticks!!!"
+  end
   
 end

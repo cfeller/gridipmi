@@ -1,3 +1,5 @@
+# put hostname (i.e., Node) names in here, not manager (i.e., ILOM or DRAC) names
+#
 #Rack 0
 0:
   0: compute-0-0

@@ -158,6 +158,8 @@ class Ilom
         if c != "N/A"
           return x.split(",")[1],x.split(",")[0] #return Device Name, ID
         end
+      elsif x.include?("Ambient,Temperature") #Fujitsu
+        return x.split(",")[1],x.split(",")[0] #return Device Name, ID 
       end  
     end
   end

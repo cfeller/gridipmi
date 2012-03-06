@@ -6,6 +6,7 @@ ENV["RAILS_ENV"] ||= "development"
 
 require File.dirname(__FILE__) + "/../../config/application"
 Rails.application.require_environment!
+Rails.logger.auto_flushing = true
 
 require "ilom"
 require "rrd"
@@ -13,7 +14,8 @@ require "yaml"
 
 Dir.chdir("/mnt/brick/.gridipmi")
 
-loc = YAML::load(File.open('config/layout.yml')) #load physical layout
+loc = YAML::load(fd = File.open('config/layout.yml')) #load physical layout
+fd.close
 # load host locations into model
 loc.each_key do |x|
   loc[x].each_key do |y|
@@ -25,7 +27,8 @@ loc.each_key do |x|
 end
 
 # load RRD DB config
-yml = YAML::load(File.open('config/rrd_config.yml'))
+yml = YAML::load(fd = File.open('config/rrd_config.yml'))
+fd.close
 rrd = yml[:rrd]
 
 
@@ -78,14 +81,12 @@ end
 
 #create rrd db dir
 if ! File.directory?(rrd[:db_path])
-  Rails.logger.auto_flushing = true
   Rails.logger.info "Trying to make db directories in #{Dir.pwd}."
   Dir.mkdir(rrd[:db_path])
 end
 
 #create graph output dir
 if ! File.directory?(rrd[:img_path])
-  Rails.logger.auto_flushing = true
   Rails.logger.info "Trying to make img directories in #{Dir.pwd}."
   Dir.mkdir(rrd[:img_path])
   Dir.mkdir(rrd[:img_path_sm])
@@ -95,7 +96,6 @@ end
 nodelist.each_key do |x|
   #create dirs if they don't exist
   if ! File.directory?(rrd[:db_path])
-    Rails.logger.auto_flushing = true
     Rails.logger.info "Trying to make directory in #{Dir.pwd}."
     Dir.mkdir(rrd[:db_path])
   end
@@ -140,7 +140,6 @@ while($running) do
       end
     else
       puts "'N/A' returned, punting"
-      Rails.logger.auto_flushing = true
       Rails.logger.info nodelist[x][:bmc].get_hostname+"returned 'N/A', punting"
     end
   end
@@ -150,7 +149,6 @@ while($running) do
     sleep 60 + $delta
   rescue ArgumentError
     puts "Lost "+(-60 - $delta).to_s+" ticks!!!"
-    Rails.logger.auto_flushing = true
     Rails.logger.info "Lost "+(-60 - $delta).to_s+" ticks!!!"
   end
   

@@ -1,0 +1,11 @@
+# what percentage of nodes have to be on fire to consider it a global event
+# default is 5%
+:global:
+  :unc_event: 5
+  :ucr_event: 5
+
+# number of event loops before an encroachment past unc or ucr is acted upon.
+# event loops are currently 60 seconds each, so these parameters are minutes
+:local:
+  :unc_counter_thresh: 3
+  :ucr_counter_thresh: 1

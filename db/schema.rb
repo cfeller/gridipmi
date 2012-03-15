@@ -10,7 +10,7 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20120103040833) do
+ActiveRecord::Schema.define(:version => 20120312024359) do
 
   create_table "locations", :force => true do |t|
     t.integer  "rack"

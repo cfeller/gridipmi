@@ -11,8 +11,12 @@ Rails.logger.auto_flushing = true
 require "ilom"
 require "rrd"
 require "yaml"
+require "sge"
 
 Dir.chdir("/mnt/brick/.gridipmi")
+
+thresh_config = YAML::load(fd = File.open('config/thresholds.yml')) #load temperature action thresholds
+fd.close
 
 loc = YAML::load(fd = File.open('config/layout.yml')) #load physical layout
 fd.close
@@ -72,6 +76,10 @@ hostlist.each_key do |x|
     t.def_thresh_unc, t.def_thresh_ucr, t.def_thresh_unr = t.thresh_unc, t.thresh_ucr, t.thresh_unr # set defaults
     t.mbt_amb = nodelist[x][:bmc].get_temp_device
     t.mbt_amb_id = nodelist[x][:bmc].get_temp_id
+    t.unc_exceeded = false
+    t.ucr_exceeded = false
+    t.unc_exceeded_counter = 0
+    t.ucr_exceeded_counter = 0
     t.location = Location.find_by_hostname(x)
     t.save
   else
@@ -107,11 +115,14 @@ Signal.trap("TERM") do
   $running = false
 end
 
+sge = IlomSGE.new
+
 $y=0
 while($running) do
 
   $y += 1
   $delta = Time.now.to_i
+  $temp_event = false
   
   nodelist.each_key do |x|
     if 'N/A' != nodelist[x][:bmc].read_cur_temp #X4140s occasionally return 'N/A'.  If so, we pass.
@@ -122,6 +133,52 @@ while($running) do
       t.cur_temp = nodelist[x][:bmc].get_temp #update SQL
       t.watermark_high = t.cur_temp if t.cur_temp > t.watermark_high
       t.watermark_low = t.cur_temp if t.cur_temp < t.watermark_low
+      
+      #######################################
+      # check for environmental failure(s)  #
+      #######################################
+      #####################################
+      # local node handling               #
+      #####################################
+      if t.cur_temp >= t.thresh_ucr && nodelist[x][:bmc].get_chassis_power_status.chomp.split[3] == "on"
+
+        $temp_event = true
+        t.ucr_exceeded_counter += 1
+        
+        if t.ucr_exceeded == false
+          t.ucr_exceeded = true
+        end
+        if t.ucr_exceeded_counter >= thresh_config[:local][:ucr_counter_thresh]
+          Rails.logger.info "Temp UCR Event: " + t.hostname + " exceeded UCR temp: " + t.thresh_ucr.to_s + " and is currently at: " + t.cur_temp.to_s
+          Rails.logger.info "Temp UCR Event: " + t.hostname + " has been at this temp for " + t.ucr_exceeded_counter.to_s + " cycles, and will be shutdown"
+          sge.find_all_running_jobs
+          Rails.logger.info "Temp UCR Event: " + t.hostname + ": shutting down jobs " + sge.find_jobs_on_node(t.hostname).join(" ")
+          Rails.logger.info "Temp UCR Event: " + t.hostname + ": shutting down node..."
+        end
+        
+      elsif t.cur_temp >= t.thresh_unc && nodelist[x][:bmc].get_chassis_power_status.chomp.split[3] == "on"
+
+        $temp_event = true
+        t.unc_exceeded_counter +=1
+        
+        if t.unc_exceeded == false
+          t.unc_exceeded = true
+        end
+        if t.unc_exceeded_counter >= thresh_config[:local][:unc_counter_thresh]
+          Rails.logger.info "Temp UNC Event: " + t.hostname + " exceeded UNC temp: " + t.thresh_unc.to_s + " and is currently at: " + t.cur_temp.to_s
+          Rails.logger.info "Temp UNC Event: " + t.hostname + " has been at this temp for " + t.unc_exceeded_counter.to_s + " cycles, and will be shutdown"
+          Rails.logger.info "Temp UNC Event: " + t.hostname + ": shutting down jobs " + sge.find_jobs_on_node(t.hostname).join(" ")
+          Rails.logger.info "Temp UNC Event: " + t.hostname + ": shutting down node..."
+        end
+        
+      end
+      ###################################
+      # end local node handling         #
+      ###################################
+      #####################################
+      #end environmental failure section  #
+      #####################################
+      
       t.save
       #puts nodelist[x][:bmc].get_hostname
       if $y % 5 == 0
@@ -143,6 +200,24 @@ while($running) do
       Rails.logger.info nodelist[x][:bmc].get_hostname+"returned 'N/A', punting"
     end
   end
+
+
+  ###################################
+  # global event handling           #
+  ###################################
+  # if there was a temperature event this last loop, check to see if we have a global event
+  if $temp_event
+    if Node.all.size * 0.05 <= Node.find_all_by_unc_exceeded(true).size
+      Rails.logger.info "Global Event: Global event detected"
+      Rails.logger.info "Global Event: suspend all jobs, gridwide"
+      Rails.logger.info "Global Event: shutdown all nodes not running a job"
+    end
+    $temp_event = false #set to false, so we don't re-enter unless flag is re-set
+  end
+  ###################################
+  # end global event handling       #
+  ###################################
+  
   
   $delta -= Time.now.to_i
   begin

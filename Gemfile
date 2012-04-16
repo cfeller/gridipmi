@@ -9,6 +9,7 @@ gem 'sqlite3-ruby'
 gem 'drmaa'
 gem 'ffi'
 gem 'nokogiri'
+gem 'wirble'
 
 # Use unicorn as the web server
 # gem 'unicorn'

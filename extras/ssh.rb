@@ -5,7 +5,7 @@
 #
 # author  = Chad Feller
 # version = 0.1
-# date    = 15 Apr 2011
+# date    = 15 Apr 2012
 #
 
 require 'net/ssh'
@@ -14,7 +14,7 @@ class GridSSH
   
   def shutdown_node(n)
     puts "shutting down "+n+" now!!!"
-    Net::SSH.start( n, "feller") do |ssh|
+    Net::SSH.start( n, "gridipmi") do |ssh|
       ssh.open_channel do |channel|
         channel.request_pty do |c, success|
           if success

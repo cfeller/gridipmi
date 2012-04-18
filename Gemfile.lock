@@ -42,6 +42,7 @@ GEM
       mime-types (~> 1.16)
       treetop (~> 1.4.8)
     mime-types (1.17.2)
+    net-ssh (2.3.0)
     nokogiri (1.5.0)
     polyglot (0.3.3)
     rack (1.2.4)
@@ -80,6 +81,7 @@ PLATFORMS
 DEPENDENCIES
   drmaa
   ffi
+  net-ssh
   nokogiri
   rails (= 3.0.11)
   sqlite3-ruby

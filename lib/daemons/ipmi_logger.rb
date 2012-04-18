@@ -12,6 +12,7 @@ require "ilom"
 require "rrd"
 require "yaml"
 require "sge"
+require "ssh"
 
 Dir.chdir("/mnt/brick/.gridipmi")
 
@@ -53,6 +54,14 @@ rescue EOFError
   fhandle.close
 end
 
+masterfile="config/master.txt"
+fhandle = open(masterfile, "r")
+begin
+  master_node = fhandle.readline.chomp
+rescue EOFError
+  fhandle.close
+end
+
 nodelist = {} # {hostname => { :bmc => Ilom object , :rrd => IlomRRD object, :node_id => Node ID } }
 
 # populate nodelist{}, and check if node already exists in DB.  if not,
@@ -68,7 +77,9 @@ hostlist.each_key do |x|
   if !( n = Node.find_by_hostname(x) )
     t = Node.create( { :hostname => x } )
     nodelist[x][:node_id] = t.id
+    t.master = (x == master_node ? true : false)
     t.hostname = x
+    t.ilom_name = hostlist[x]
     t.watermark_low = t.watermark_high = t.cur_temp = nodelist[x][:bmc].get_temp
     t.temp_status = nodelist[x][:bmc].get_temp_status
     t.thresh_unc, t.thresh_ucr, t.thresh_unr = nodelist[x][:bmc].get_temp_thresholds
@@ -116,6 +127,8 @@ Signal.trap("TERM") do
 end
 
 sge = IlomSGE.new
+ssh = GridSSH.new
+skip_sleep = false
 
 $y=0
 while($running) do
@@ -140,37 +153,98 @@ while($running) do
       #####################################
       # local node handling               #
       #####################################
-      if t.cur_temp >= t.thresh_ucr && nodelist[x][:bmc].get_chassis_power_status.chomp.split[3] == "on"
+      if ! t.master
 
-        $temp_event = true
-        t.ucr_exceeded_counter += 1
-        
-        if t.ucr_exceeded == false
-          t.ucr_exceeded = true
-        end
-        if t.ucr_exceeded_counter >= thresh_config[:local][:ucr_counter_thresh]
-          Rails.logger.info "Temp UCR Event: " + t.hostname + " exceeded UCR temp: " + t.thresh_ucr.to_s + " and is currently at: " + t.cur_temp.to_s
-          Rails.logger.info "Temp UCR Event: " + t.hostname + " has been at this temp for " + t.ucr_exceeded_counter.to_s + " cycles, and will be shutdown"
-          sge.find_all_running_jobs
-          Rails.logger.info "Temp UCR Event: " + t.hostname + ": shutting down jobs " + sge.find_jobs_on_node(t.hostname).join(" ")
-          Rails.logger.info "Temp UCR Event: " + t.hostname + ": shutting down node..."
-        end
-        
-      elsif t.cur_temp >= t.thresh_unc && nodelist[x][:bmc].get_chassis_power_status.chomp.split[3] == "on"
+        if t.cur_temp >= t.thresh_ucr && nodelist[x][:bmc].get_chassis_power_status.chomp.split[3] == "on" #UCR exceeded
 
-        $temp_event = true
-        t.unc_exceeded_counter +=1
+          #make note of it,
+          #increment counter, so we know how "long" this has been occuring
+          $temp_event = true
+          t.ucr_exceeded_counter += 1
         
-        if t.unc_exceeded == false
-          t.unc_exceeded = true
+          if t.ucr_exceeded == false
+            t.ucr_exceeded = true
+          end
+          
+          if t.ucr_exceeded_counter >= thresh_config[:local][:ucr_counter_thresh] #Upper Critical Event
+            #
+            # TODO Factor out to background thread (fiber?)
+            #
+            Rails.logger.info "Temp UCR Event: " + t.hostname + " exceeded UCR temp: " + t.thresh_ucr.to_s + " and is currently at: " + t.cur_temp.to_s
+            Rails.logger.info "Temp UCR Event: " + t.hostname + " has been at this temp for " + t.ucr_exceeded_counter.to_s + " cycles, and will be shutdown"
+            sge.find_all_running_jobs #update job list
+            Rails.logger.info "Temp UCR Event: " + t.hostname + ": shutting down jobs :" + sge.find_jobs_on_node(t.hostname).join(" ")
+            sge.find_jobs_on_node(t.hostname).each {|job| sge.terminate_job(job)} #terminate job, so it can respawn elsewhere
+            Rails.logger.info "Temp UCR Event: " + t.hostname + ": shutting down node..."
+            begin
+              ssh.shutdown_node(t.hostname)
+            rescue SocketError
+              Rails.logger.info "Temp UCR Event: " + t.hostname + "Unable to issue shutdown command via SSH, Error: Socket Error"
+              skip_sleep = true #if there was an error, don't sleep go straight to IPMI based shutdown
+            rescue Errno::EHOSTUNREACH
+              Rails.logger.info "Temp UCR Event: " + t.hostname + "Unable to issue shutdown command via SSH, Error: Host Unreachable"
+              skip_sleep = true #if there was an error, don't sleep go straight to IPMI based shutdown
+            end
+            
+            if !skip_sleep
+              sleep 30
+            else
+              skip_sleep = false #clear for next loop
+            end
+            
+            if nodelist[x][:bmc].get_chassis_power_status.include?("Chassis Power is on")
+              Rails.logger.info "Temp UCR Event: " + t.hostname + ": shutdown taking too long, forcing off via IPMI!"
+              nodelist[x][:bmc].set_chassis_power_off
+            end
+            #
+            # end TODO
+            #
+          end
+          
+        elsif t.cur_temp >= t.thresh_unc && nodelist[x][:bmc].get_chassis_power_status.chomp.split[3] == "on"
+          
+          $temp_event = true
+          t.unc_exceeded_counter +=1
+          
+          if t.unc_exceeded == false
+            t.unc_exceeded = true
+          end
+          if t.unc_exceeded_counter >= thresh_config[:local][:unc_counter_thresh] #Upper Non-Critical Event
+            #
+            # TODO Factor out to background thread (fiber?)
+            #
+            Rails.logger.info "Temp UNC Event: " + t.hostname + " exceeded UNC temp: " + t.thresh_unc.to_s + " and is currently at: " + t.cur_temp.to_s
+            Rails.logger.info "Temp UNC Event: " + t.hostname + " has been at this temp for " + t.unc_exceeded_counter.to_s + " cycles, and will be shutdown"
+            sge.find_all_running_jobs #update job list
+            Rails.logger.info "Temp UNC Event: " + t.hostname + ": shutting down jobs " + sge.find_jobs_on_node(t.hostname).join(" ")
+            sge.find_jobs_on_node(t.hostname).each {|job| sge.terminate_job(job)} #terminate job, so it can respawn elsewhere
+            Rails.logger.info "Temp UNC Event: " + t.hostname + ": shutting down node..."
+            begin
+              ssh.shutdown_node(t.hostname)
+            rescue SocketError
+              Rails.logger.info "Temp UNC Event: " + t.hostname + "Unable to issue shutdown command via SSH, Error: Socket Error"
+              skip_sleep = true #if there was an error, don't sleep go straight to IPMI based shutdown
+            rescue Errno::EHOSTUNREACH
+              Rails.logger.info "Temp UNC Event: " + t.hostname + "Unable to issue shutdown command via SSH, Error: Host Unreachable"
+              skip_sleep = true #if there was an error, don't sleep go straight to IPMI based shutdown
+            end
+            
+            if !skip_sleep
+              sleep 30
+            else
+              skip_sleep = false #clear for next loop
+            end
+
+            if nodelist[x][:bmc].get_chassis_power_status.include?("Chassis Power is on")
+              Rails.logger.info "Temp UNC Event: " + t.hostname + ": shutdown taking too long, forcing off via IPMI!"
+              nodelist[x][:bmc].set_chassis_power_off
+            end
+            #
+            # end TODO
+            #
+          end
+          
         end
-        if t.unc_exceeded_counter >= thresh_config[:local][:unc_counter_thresh]
-          Rails.logger.info "Temp UNC Event: " + t.hostname + " exceeded UNC temp: " + t.thresh_unc.to_s + " and is currently at: " + t.cur_temp.to_s
-          Rails.logger.info "Temp UNC Event: " + t.hostname + " has been at this temp for " + t.unc_exceeded_counter.to_s + " cycles, and will be shutdown"
-          Rails.logger.info "Temp UNC Event: " + t.hostname + ": shutting down jobs " + sge.find_jobs_on_node(t.hostname).join(" ")
-          Rails.logger.info "Temp UNC Event: " + t.hostname + ": shutting down node..."
-        end
-        
       end
       ###################################
       # end local node handling         #
@@ -201,7 +275,6 @@ while($running) do
     end
   end
 
-
   ###################################
   # global event handling           #
   ###################################
@@ -210,7 +283,31 @@ while($running) do
     if Node.all.size * 0.05 <= Node.find_all_by_unc_exceeded(true).size
       Rails.logger.info "Global Event: Global event detected"
       Rails.logger.info "Global Event: suspend all jobs, gridwide"
+      sge.suspend_queues
       Rails.logger.info "Global Event: shutdown all nodes not running a job"
+      free_nodes = sge.find_free_nodes
+
+      #try clean shutdown first
+      free_nodes.each do |node|
+        begin
+          ssh.shutdown_node(node)
+        rescue SocketError
+          Rails.logger.info "Global shutdown event: " + node + "Unable to issue shutdown command via SSH, Error: Socket Error"
+        rescue Errno::EHOSTUNREACH
+          Rails.logger.info "Global shutdown event: " + node + "Unable to issue shutdown command via SSH, Error: Host Unreachable"
+        end
+      end
+
+      sleep 20
+
+      #follow up and force off if needed
+      free_nodes.each do |node|
+        if nodelist[node][:bmc].get_chassis_power_status.include?("Chassis Power is on")
+          Rails.logger.info "Global shutdown event: " + node + ": shutdown taking too long, forcing off via IPMI!"
+          nodelist[node][:bmc].set_chassis_power_off
+        end
+      end
+      
     end
     $temp_event = false #set to false, so we don't re-enter unless flag is re-set
   end

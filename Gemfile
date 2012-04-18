@@ -10,6 +10,7 @@ gem 'drmaa'
 gem 'ffi'
 gem 'nokogiri'
 gem 'wirble'
+gem 'net-ssh'
 
 # Use unicorn as the web server
 # gem 'unicorn'

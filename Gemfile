@@ -6,6 +6,11 @@ gem 'rails', '3.0.11'
 # gem 'rails', :git => 'git://github.com/rails/rails.git'
 
 gem 'sqlite3-ruby'
+gem 'drmaa'
+gem 'ffi'
+gem 'nokogiri'
+gem 'wirble'
+gem 'net-ssh'
 
 # Use unicorn as the web server
 # gem 'unicorn'

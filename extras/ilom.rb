@@ -16,6 +16,9 @@
 $ipmitool = 'ipmitool'
 $ipmitool_preargs = ' -U root -P $(cat ~/.secure/pw) -H '
 $ipmitool_ch_pwr_st = ' chassis power status'
+$ipmitool_ch_pwr_cy = ' chassis power cycle'
+$ipmitool_ch_pwr_of = ' chassis power off'
+$ipmitool_ch_pwr_on = ' chassis power on'
 $ipmitool_fru0 = ' fru print 0'
 $ipmitool_fru3 = ' fru print 3'
 
@@ -50,6 +53,18 @@ class Ilom
 
   def get_chassis_power_status
     %x[#{$ipmitool} #{$ipmitool_preargs} #{@hostname} #{$ipmitool_ch_pwr_st}]
+  end
+  
+  def set_chassis_power_cycle
+    %x[#{$ipmitool} #{$ipmitool_preargs} #{@hostname} #{$ipmitool_ch_pwr_cy}]
+  end
+  
+  def set_chassis_power_off
+    %x[#{$ipmitool} #{$ipmitool_preargs} #{@hostname} #{$ipmitool_ch_pwr_of}]
+  end
+  
+  def set_chassis_power_on
+    %x[#{$ipmitool} #{$ipmitool_preargs} #{@hostname} #{$ipmitool_ch_pwr_on}]
   end
 
   # authcap workaround needed for elom

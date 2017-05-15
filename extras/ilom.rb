@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby1.9
 
 #
-# socks and zcmd tester
+# ILOM Class
 #
 # author  = Chad Feller
 # version = 0.1

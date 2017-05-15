@@ -11,7 +11,9 @@ require "ilom"
 require "rrd"
 require "yaml"
 
-Dir.chdir("/mnt/brick/.gridipmi")
+gridipmi_home = "/path/to/gridipmi"
+
+Dir.chdir(gridipmi_home)
 
 loc = YAML::load(File.open('config/layout.yml')) #load physical layout
 # load host locations into model
